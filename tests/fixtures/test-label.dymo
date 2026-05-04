@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<DieCutLabel Version="8.0" Units="twips">
+  <PaperOrientation>Landscape</PaperOrientation>
+  <Id>Address</Id>
+  <ObjectInfo>
+    <TextObject>
+      <Name>Name</Name>
+      <IsVariable>True</IsVariable>
+      <Text>Test Label</Text>
+    </TextObject>
+  </ObjectInfo>
+</DieCutLabel>
