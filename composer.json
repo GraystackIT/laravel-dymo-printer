@@ -1,9 +1,9 @@
 {
     "name": "graystackit/laravel-dymo-printer",
-    "description": "A Laravel package for Dymo label printer integration with Livewire support",
+    "description": "A Laravel package for DYMO LabelWriter integration with Alpine.js and Livewire support",
     "type": "library",
     "license": "MIT",
-    "keywords": ["laravel", "dymo", "printer", "label", "printing", "livewire"],
+    "keywords": ["laravel", "dymo", "dymo-connect", "printer", "label", "printing", "livewire", "alpine"],
     "authors": [
         {
             "name": "Graystack",

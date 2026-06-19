@@ -54,14 +54,18 @@ return [
     | DYMO SDK URL
     |--------------------------------------------------------------------------
     |
-    | URL to the official DYMO JavaScript Framework SDK.
-    | The default loads it from DYMO's CDN. You can override this to point
-    | to a locally hosted copy.
+    | URL to the official DYMO Connect Framework JavaScript SDK.
+    | The default loads it from the DYMO GitHub repository. For production use,
+    | download the file and self-host it (publish with --tag=dymo-printer-assets
+    | or serve from your own CDN) so you are not dependent on an external host.
+    |
+    | Old DLS SDK (labelwriter.com host — no longer reliable):
+    |   https://labelwriter.com/software/dls/sdk/js/DYMO.Label.Framework.latest.js
     |
     */
     'sdk_url' => env(
         'DYMO_SDK_URL',
-        'https://labelwriter.com/software/dls/sdk/js/DYMO.Label.Framework.latest.js'
+        'https://raw.githubusercontent.com/dymosoftware/dymo-connect-framework/master/dymo.connect.framework.js'
     ),
 
     /*

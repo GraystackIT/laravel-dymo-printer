@@ -5,6 +5,34 @@ All notable changes to `graystackit/laravel-dymo-printer` will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-06-19
+
+### Fixed
+
+#### JavaScript SDK (`dymo-system.js`)
+
+- **`setText()` in batch printing** — `LabelSetBuilder` records now use `setText()` instead of `setTextMarkup()`. The DYMO Connect Framework explicitly does not support `setTextMarkup()` for DYMO Connect format labels; calling it silently produced blank output on every label in a batch. Labels created with DYMO Connect software now print correctly.
+- **`isConnected` normalisation** — Printer objects from the DYMO Connect Framework expose `isConnected` as a method, not a boolean property. The previous check (`p.isConnected !== false`) evaluated to `true` for any function reference, meaning all printers were always reported as connected regardless of their real state. The mapping now calls `p.isConnected()` when it is a function and falls back to the property form for older DLS SDK versions.
+- **`LabelSetBuilder.toString()`** — The package previously called the undocumented `labelSet.toXml()`. The documented serialisation method is `toString()`. When `toXml()` was absent, `printWithParamsAndLabelSetAsync()` received `undefined`, threw immediately, and always fell back to the slower sequential-print path. Batch printing now uses the correct method and the optimised code path is actually reached.
+- **`getPrinters()` fallback** — `getPrintersAsync()` is a DYMO Connect Framework addition absent from older DLS SDK builds. Calling an undefined function threw an uncaught error and returned no printers. The SDK call now guards `typeof getPrintersAsync === 'function'` and falls back to the synchronous `getPrinters()` wrapped in `Promise.resolve()`.
+
+#### JavaScript SDK (`dymo-system.js`) — Improvement
+
+- **`checkEnvironment()` early check** — When the DYMO Connect Framework is loaded, `checkEnvironment()` is called before the async `init()` handshake. This surfaces "DYMO Connect software not installed" immediately with a clear error message instead of waiting out the 3.2 s polling timeout.
+
+### Changed
+
+#### Configuration (`config/dymo-printer.php`)
+
+- **`sdk_url` default updated** — The previous default pointed to `labelwriter.com`, which is the old DYMO Label Software CDN and is no longer reliably reachable. The default now points to the DYMO Connect Framework hosted on the official DYMO GitHub repository (`dymosoftware/dymo-connect-framework`). The environment variable `DYMO_SDK_URL` continues to work for self-hosted or custom CDN URLs.
+
+#### Metadata
+
+- `composer.json` description updated to accurately reflect Alpine.js support alongside Livewire
+- `composer.json` keywords extended with `dymo-connect` and `alpine`
+
+---
+
 ## [1.0.0] - 2025-05-04
 
 ### Added
@@ -57,5 +85,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Helper functions: `dymo_printer()`, `dymo_has_printer()`, `dymo_template_url(string $name)`
 - Publishable groups: `dymo-printer-config`, `dymo-printer-views`, `dymo-printer-assets`, `dymo-printer-migrations`
 
-[Unreleased]: https://github.com/GraystackIT/laravel-dymo-printer/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/GraystackIT/laravel-dymo-printer/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/GraystackIT/laravel-dymo-printer/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/GraystackIT/laravel-dymo-printer/releases/tag/v1.0.0

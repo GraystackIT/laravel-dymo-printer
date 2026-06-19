@@ -51,6 +51,18 @@ window.DymoSystem = (() => {
     async function _initialize() {
         await waitForFramework();
 
+        // checkEnvironment() is available in the DYMO Connect Framework and gives an
+        // immediate, actionable diagnosis before attempting the async init handshake.
+        if (typeof dymo.label.framework.checkEnvironment === 'function') {
+            const env = dymo.label.framework.checkEnvironment();
+            if (!env.isFrameworkInstalled) {
+                throw new Error(
+                    'DYMO Connect software is not installed or not running on this machine. ' +
+                    (env.errorDetails ?? '')
+                );
+            }
+        }
+
         await new Promise((resolve, reject) => {
             try {
                 dymo.label.framework.init((isOk) => {
@@ -90,11 +102,22 @@ window.DymoSystem = (() => {
     async function getPrinters() {
         await ensureInitialized();
 
-        const all = await dymo.label.framework.getPrintersAsync();
+        // Prefer getPrintersAsync() (DYMO Connect Framework); fall back to the
+        // synchronous getPrinters() present in older DLS SDK versions.
+        const all = typeof dymo.label.framework.getPrintersAsync === 'function'
+            ? await dymo.label.framework.getPrintersAsync()
+            : dymo.label.framework.getPrinters();
 
         return all
             .filter(p => p.printerType === 'LabelWriterPrinter')
-            .map(p => ({ name: p.name, isConnected: p.isConnected !== false }));
+            .map(p => ({
+                name: p.name,
+                // isConnected is a method in DYMO Connect Framework but a plain boolean
+                // property in the older DLS SDK — normalise both forms.
+                isConnected: typeof p.isConnected === 'function'
+                    ? p.isConnected()
+                    : p.isConnected !== false,
+            }));
     }
 
     // ─── Templates ────────────────────────────────────────────────────────────
@@ -162,14 +185,18 @@ window.DymoSystem = (() => {
                 const record = labelSet.addRecord();
                 for (const [key, value] of Object.entries(data)) {
                     try {
-                        record.setTextMarkup(key, String(value ?? ''));
+                        // setText() is the correct method for DYMO Connect labels.
+                        // setTextMarkup() is explicitly not supported for DYMO Connect
+                        // format labels and silently produces blank output.
+                        record.setText(key, String(value ?? ''));
                     } catch {
                         // Field not in template — skip
                     }
                 }
             }
 
-            await label.printWithParamsAndLabelSetAsync(printerName, null, labelSet.toXml());
+            // toString() is the documented LabelSetBuilder serialisation method.
+            await label.printWithParamsAndLabelSetAsync(printerName, null, labelSet.toString());
 
         } catch {
             // Batch API unavailable — fall back to sequential printing
