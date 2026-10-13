@@ -54,19 +54,19 @@ return [
     | DYMO SDK URL
     |--------------------------------------------------------------------------
     |
-    | URL to the official DYMO Connect Framework JavaScript SDK.
-    | The default loads it from the DYMO GitHub repository. For production use,
-    | download the file and self-host it (publish with --tag=dymo-printer-assets
-    | or serve from your own CDN) so you are not dependent on an external host.
+    | URL the DYMO Connect Framework JavaScript SDK is loaded from by
+    | @dymoscripts / <x-dymo-printer::scripts />.
     |
-    | Old DLS SDK (labelwriter.com host — no longer reliable):
-    |   https://labelwriter.com/software/dls/sdk/js/DYMO.Label.Framework.latest.js
+    | null (the default) serves the package's own vendored copy of the SDK,
+    | pinned to a reviewed commit, from the `dymo-printer.sdk` route — no
+    | external host, no moving `master` branch. Set a URL only to load a
+    | different build, e.g. from your own CDN.
+    |
+    | Bundler (Vite) consumers importing resources/js/index.js get the same
+    | vendored file through Vite and do not use this value.
     |
     */
-    'sdk_url' => env(
-        'DYMO_SDK_URL',
-        'https://raw.githubusercontent.com/dymosoftware/dymo-connect-framework/master/dymo.connect.framework.js'
-    ),
+    'sdk_url' => env('DYMO_SDK_URL'),
 
     /*
     |--------------------------------------------------------------------------
@@ -74,8 +74,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | When true, the <livewire:dymo-printer::printer-select /> component will
-    | automatically include the required DYMO scripts. Set to false if you
-    | include <x-dymo-printer::scripts /> manually in your layout.
+    | automatically include the required DYMO scripts (through Livewire's
+    | @assets, so they load once even when the component is added later).
+    | Leave false if you include <x-dymo-printer::scripts /> in your layout or
+    | import the package's resources/js/index.js in your bundle.
     |
     */
     'auto_load_scripts' => (bool) env('DYMO_AUTO_LOAD_SCRIPTS', false),

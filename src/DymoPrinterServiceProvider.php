@@ -62,8 +62,10 @@ class DymoPrinterServiceProvider extends ServiceProvider
             __DIR__ . '/../resources/views' => resource_path('views/vendor/dymo-printer'),
         ], 'dymo-printer-views');
 
+        // Self-hosting the scripts and the vendored SDK is optional: the
+        // package routes serve them, and bundler consumers import them from
+        // vendor/ directly (see README).
         $this->publishes([
-            __DIR__ . '/../resources/js' => resource_path('js/vendor/dymo-printer'),
             __DIR__ . '/../resources/js' => public_path('vendor/dymo-printer'),
         ], 'dymo-printer-assets');
 
@@ -80,9 +82,28 @@ class DymoPrinterServiceProvider extends ServiceProvider
         });
     }
 
+    /**
+     * Register <livewire:dymo-printer::printer-select /> for Livewire 3 and 4.
+     *
+     * Livewire 4's finder treats any `::` in a component name as a namespace
+     * lookup and only consults explicit Livewire::component() registrations
+     * for names without one, so the v3-style registration below is silently
+     * ineffective there (ComponentNotFoundException). Registering the
+     * `dymo-printer` namespace routes the same name to this package's
+     * Livewire classes. The finder is only touched once Livewire itself
+     * resolves it, so the order of the two service providers does not matter.
+     */
     private function registerLivewireComponents(): void
     {
         if (! class_exists(\Livewire\Livewire::class)) {
+            return;
+        }
+
+        if (class_exists(\Livewire\Finder\Finder::class)) {
+            $this->callAfterResolving('livewire.finder', function (\Livewire\Finder\Finder $finder): void {
+                $finder->addNamespace('dymo-printer', classNamespace: 'GraystackIT\\DymoPrinter\\Livewire');
+            });
+
             return;
         }
 

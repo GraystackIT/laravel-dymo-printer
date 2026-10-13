@@ -164,6 +164,38 @@ it('batchViaLivewire() dispatches the correct batch event on the component', fun
         ->and($component->params['labels'])->toBe($labels);
 });
 
+it('forPrint() omits the ref key when no ref is given', function (): void {
+    $payload = $this->manager->forPrint('http://example.com/label.dymo', [], 'My Printer');
+
+    expect($payload)->not->toHaveKey('ref');
+});
+
+it('forPrint() and forBatch() include a given ref for result correlation', function (): void {
+    $single = $this->manager->forPrint('http://example.com/label.dymo', [], 'My Printer', 'job-1');
+    $batch  = $this->manager->forBatch('http://example.com/label.dymo', [], 'My Printer', 'job-2');
+
+    expect($single[0])->toBe('dymo:print')
+        ->and($single['ref'])->toBe('job-1')
+        ->and($batch[0])->toBe('dymo:print-batch')
+        ->and($batch['ref'])->toBe('job-2');
+});
+
+it('batchViaLivewire() passes the ref on to the dispatched event', function (): void {
+    $component = new class {
+        /** @var array<string, mixed> */
+        public array $params = [];
+
+        public function dispatch(string $event, mixed ...$params): void
+        {
+            $this->params = $params;
+        }
+    };
+
+    $this->manager->batchViaLivewire($component, 'http://example.com/label.dymo', [['Name' => 'A']], 'My Printer', 'batch-7');
+
+    expect($component->params['ref'])->toBe('batch-7');
+});
+
 it('templateUrl() generates a URL containing the template filename', function (): void {
     $url = $this->manager->templateUrl('my-label.dymo');
 

@@ -7,7 +7,8 @@ A Laravel package for DYMO LabelWriter printer integration with Alpine.js and Li
 - PHP 8.3+
 - Laravel 11, 12, or 13
 - [DYMO Connect](https://www.dymo.com/support/dymo-connect-for-desktop-download.html) installed on client machines
-- Livewire 3.x *(optional — only needed for the Livewire printer-select component)*
+- Livewire 3.x or 4.x *(optional — only needed for the Livewire printer-select component)*
+- Alpine.js *(for the printer-select components; Livewire ships it)*
 
 ## Installation
 
@@ -46,8 +47,8 @@ php artisan migrate
 | `cache_ttl` | `7776000` | Cache TTL in seconds — 90 days (cache driver only) |
 | `device_cookie_name` | `dymo_device_uuid` | Cookie name used to identify a device/browser |
 | `templates_path` | `resource_path('labels')` | Base directory for `.dymo` template files |
-| `sdk_url` | DYMO CDN | URL to the DYMO JavaScript Framework SDK |
-| `auto_load_scripts` | `false` | Auto-include scripts inside the Livewire component |
+| `sdk_url` | `null` (vendored copy) | URL `@dymoscripts` loads the DYMO Connect SDK from; `null` serves the package's own pinned copy |
+| `auto_load_scripts` | `false` | Auto-include scripts inside the Livewire component (via Livewire `@assets`) |
 | `route_prefix` | `dymo-printer` | URL prefix for all package routes |
 | `route_middleware` | `['web']` | Middleware applied to all package routes |
 
@@ -85,9 +86,43 @@ Publish and run the migration before using this driver (see Installation step 3)
 
 ## Usage
 
-### 1. Include the DYMO Scripts
+### 1. Load the JavaScript
 
-Add the scripts component in your layout, before the closing `</body>` tag:
+The package ships three scripts:
+
+| File | Purpose |
+|------|---------|
+| `resources/js/dymo-system.js` | `window.DymoSystem` and the `dymo:print*` event bus |
+| `resources/js/printer-select.js` | Alpine factories `dymoPrinterSelect` / `dymoPrinterSelectStandalone` |
+| `resources/js/vendor/dymo-connect-framework.js` | The DYMO Connect Framework SDK, vendored and pinned to a reviewed commit (see its header) |
+
+Pick **one** of the two integration paths below — not both.
+
+#### a) With a bundler (Vite) — recommended
+
+Import the package entry in your app bundle (e.g. `resources/js/app.js`):
+
+```js
+import '../../vendor/graystackit/laravel-dymo-printer/resources/js/index.js';
+```
+
+That is all. Vite pins and content-hashes the vendored SDK as a static asset
+(`?url` import) and `DymoSystem` injects it as a classic `<script>` the first
+time it is needed — the SDK is a Google Closure bundle that does not run as an
+ES module. The factories are registered with `Alpine.data()` on `alpine:init`
+(and immediately, when Alpine is already there), so the printer pickers also
+work as nested Livewire children, where an inline `<script>` never runs.
+
+To load the SDK from somewhere else, configure it before the first print:
+
+```js
+window.DymoSystem.configure({ sdkUrl: 'https://cdn.example.com/dymo.connect.framework.js' });
+// or sdkUrl: null — the page loads the SDK itself, DymoSystem only waits for it
+```
+
+#### b) Classic `<script>` tags — no bundler
+
+Add the scripts component to your layout, before the closing `</body>` tag:
 
 ```blade
 <x-dymo-printer::scripts />
@@ -99,7 +134,22 @@ Or use the Blade directive shorthand:
 @dymoscripts
 ```
 
-To self-host the SDK instead of loading it from DYMO's CDN, set `sdk_url` in your config.
+It sets `window.DymoPrinterConfig.sdkUrl` and loads `dymo-system.js` and
+`printer-select.js` from the package routes (versioned URLs, no asset
+publishing). The SDK URL defaults to the package route serving the vendored
+copy; set `sdk_url` (or `DYMO_SDK_URL`) to use another build, or pass
+`:load-sdk="false"` when the page loads the SDK itself. Nothing is injected when
+`window.dymo.label.framework` already exists.
+
+#### Safe against double evaluation
+
+`wire:navigate` re-runs body scripts on every navigation and, after a deploy,
+evaluates a newly hashed bundle beside the old one. `DymoSystem` keeps its state
+in a per-document registry (`window.__dymoPrinterSystem`): the SDK is injected
+at most once per document, and a second evaluation **replaces** the
+`dymo:print` / `dymo:print-batch` listeners instead of adding a second pair —
+so a label is never printed twice. A failed SDK load or `init()` is not cached;
+the next call retries.
 
 ### 2. Printer Selection UI
 
@@ -110,7 +160,7 @@ To self-host the SDK instead of loading it from DYMO's CDN, set `sdk_url` in you
 <x-dymo-printer::printer-select />
 ```
 
-The component uses the REST API (`/dymo-printer/printer`) and stores the selection via the configured state driver. It lazy-loads the printer list on first focus.
+The component uses the REST API (`/dymo-printer/printer`) and stores the selection via the configured state driver. It loads the printer list when the select is focused — once it succeeded; a failed load (DYMO Connect not running yet) is retried on the next focus.
 
 #### Livewire Component
 
@@ -118,14 +168,19 @@ The component uses the REST API (`/dymo-printer/printer`) and stores the selecti
 <livewire:dymo-printer::printer-select />
 ```
 
-If `auto_load_scripts` is `false` (the default), include scripts manually in your layout:
+If `auto_load_scripts` is `false` (the default), load the scripts once in your layout (or import `resources/js/index.js`, see above):
 
 ```blade
-<x-dymo-printer::scripts />
+@dymoscripts
 <livewire:dymo-printer::printer-select />
 ```
 
-Both components dispatch a `dymo-printer-saved` browser event when the user saves their selection.
+Works with Livewire 3 and 4, also as a nested child component. When you publish
+and restyle the view (`--tag=dymo-printer-views`), keep its two structural
+rules, documented at the top of the file: the root `<div>` must be the very first
+thing rendered (no leading `@if`), and no inline `<script>`.
+
+The standalone component dispatches a `dymo-printer-saved` window event with `{ printer }`; the Livewire component dispatches a `dymo-printer-saved` Livewire event.
 
 ### 3. Printing Labels
 
@@ -159,6 +214,23 @@ DymoPrinter::batchViaLivewire($this, DymoPrinter::templateUrl('shipping-label.dy
     ['RecipientName' => 'John Doe',   'Address' => '123 Main St'],
     ['RecipientName' => 'Jane Smith', 'Address' => '456 Oak Ave'],
 ]);
+```
+
+A batch is sent to DYMO Connect as **one** SDK call: one `LabelSet` with a record
+per label, printed with `label.printAsync()`. Fields the template has no object
+for are left out, so a stray key cannot fail the batch. If that one call fails,
+the error is reported and nothing is retried label by label (that could reprint
+labels that already came out). Only an SDK without `LabelSetBuilder` falls back
+to one call per label.
+
+#### Correlating results with `ref`
+
+Pass a `ref` to tell which print a result belongs to — it is echoed back on
+`dymo:print-success` / `dymo:print-error`:
+
+```php
+DymoPrinter::batchViaLivewire($this, $url, $labels, ref: 'job-42');
+// or: $this->dispatch(...DymoPrinter::forPrint($url, $data, ref: 'job-42'));
 ```
 
 #### Using a Specific Printer
@@ -209,20 +281,37 @@ dymo_template_url($filename); // Generate the URL for a .dymo template file
 
 ### Events the Package Listens For
 
-Dispatch these from Livewire or anywhere in your JavaScript to trigger a print:
+Dispatch these on `window` from Livewire or anywhere in your JavaScript to trigger a print:
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `dymo:print` | `{ printer, template, data }` | Print a single label |
-| `dymo:print-batch` | `{ printer, template, labels }` | Print multiple labels in one batch |
+| `dymo:print` | `{ ref?, printer, template, data }` | Print a single label |
+| `dymo:print-batch` | `{ ref?, printer, template, labels }` | Print several labels with one SDK call |
+
+`template` is a template URL (e.g. `DymoPrinter::templateUrl(...)`, fetched once and cached) or the template XML itself.
 
 ### Events the Package Dispatches
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `dymo:print-success` | `{ printer, count? }` | Fired after a successful print |
-| `dymo:print-error` | `{ error: string }` | Fired after a print failure (check DYMO Connect is running) |
-| `dymo-printer-saved` | — | Fired when the user saves their printer selection |
+| `dymo:print-success` | `{ ref, printer, count }` | The print was accepted by DYMO Connect |
+| `dymo:print-error` | `{ ref, error }` | The print failed (e.g. DYMO Connect not running) |
+| `dymo-printer-saved` | `{ printer }` (standalone) / none (Livewire) | The user saved their printer selection |
+
+`ref` is whatever the print event carried, or `null`. It is opaque to the
+package — use it to settle exactly the jobs a result belongs to:
+
+```js
+const ref = crypto.randomUUID();
+
+window.addEventListener('dymo:print-success', (e) => {
+    if (e.detail.ref === ref) console.log(`${e.detail.count} label(s) printed`);
+});
+
+window.dispatchEvent(new CustomEvent('dymo:print-batch', {
+    detail: { ref, printer: 'DYMO LabelWriter 450', template: '/dymo-printer/templates/shipping-label.dymo', labels },
+}));
+```
 
 #### Listening in Alpine.js
 
@@ -230,7 +319,7 @@ Dispatch these from Livewire or anywhere in your JavaScript to trigger a print:
 <div x-on:dymo:print-success.window="console.log('Printed!', $event.detail)"></div>
 ```
 
-#### Listening in Livewire 3
+#### Listening in Livewire
 
 ```php
 #[On('dymo-printer-saved')]
@@ -239,6 +328,12 @@ public function onPrinterSaved(): void
     // Refresh any printer-dependent state
 }
 ```
+
+### JavaScript API
+
+`window.DymoSystem` also offers `configure({ sdkUrl })`, `ensureInitialized()`,
+`getPrinters()` (`[{ name, isConnected }]`), `loadTemplate(urlOrXml)`,
+`printSingle(printer, xml, data)` and `printBatch(printer, xml, labels)`.
 
 ---
 
@@ -266,7 +361,8 @@ php artisan vendor:publish --tag=dymo-printer-config
 # Blade views (to customise the printer-select component)
 php artisan vendor:publish --tag=dymo-printer-views
 
-# JavaScript (to self-host dymo-system.js)
+# JavaScript and the vendored SDK, to public/vendor/dymo-printer (optional:
+# the package routes serve them, bundlers import them from vendor/)
 php artisan vendor:publish --tag=dymo-printer-assets
 
 # Database migration

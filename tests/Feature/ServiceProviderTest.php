@@ -65,7 +65,9 @@ it('registers all package routes', function (): void {
         ->toContain('dymo-printer.printer.store')
         ->toContain('dymo-printer.printer.destroy')
         ->toContain('dymo-printer.template')
-        ->toContain('dymo-printer.js');
+        ->toContain('dymo-printer.js')
+        ->toContain('dymo-printer.printer-select-js')
+        ->toContain('dymo-printer.sdk');
 });
 
 it('registers the @dymoscripts Blade directive', function (): void {

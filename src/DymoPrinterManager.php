@@ -52,12 +52,17 @@ class DymoPrinterManager
      *
      * Usage in Livewire: $this->dispatch(...DymoPrinter::forPrint($url, $data));
      *
-     * @return array{0: string, printer: string, template: string, data: array<string, mixed>}
+     * A non-null $ref is echoed back on the matching dymo:print-success /
+     * dymo:print-error event, so the caller can tell which print a result
+     * belongs to.
+     *
+     * @return array{0: string, printer: string, template: string, data: array<string, mixed>, ref?: string}
      */
-    public function forPrint(string $templateUrl, array $data = [], ?string $printerName = null): array
+    public function forPrint(string $templateUrl, array $data = [], ?string $printerName = null, ?string $ref = null): array
     {
         return [
             'dymo:print',
+            ...$this->refPayload($ref),
             'printer'  => $printerName ?? $this->get() ?? '',
             'template' => $templateUrl,
             'data'     => $data,
@@ -69,13 +74,17 @@ class DymoPrinterManager
      *
      * Usage in Livewire: $this->dispatch(...DymoPrinter::forBatch($url, $labels));
      *
+     * All labels go to the printer in ONE SDK call (one LabelSet). A non-null
+     * $ref is echoed back on the matching success/error event.
+     *
      * @param  array<int, array<string, mixed>>  $labels
-     * @return array{0: string, printer: string, template: string, labels: array<int, array<string, mixed>>}
+     * @return array{0: string, printer: string, template: string, labels: array<int, array<string, mixed>>, ref?: string}
      */
-    public function forBatch(string $templateUrl, array $labels = [], ?string $printerName = null): array
+    public function forBatch(string $templateUrl, array $labels = [], ?string $printerName = null, ?string $ref = null): array
     {
         return [
             'dymo:print-batch',
+            ...$this->refPayload($ref),
             'printer'  => $printerName ?? $this->get() ?? '',
             'template' => $templateUrl,
             'labels'   => $labels,
@@ -85,9 +94,9 @@ class DymoPrinterManager
     /**
      * Dispatch a print event directly from a Livewire component.
      */
-    public function printViaLivewire(object $component, string $templateUrl, array $data = [], ?string $printerName = null): void
+    public function printViaLivewire(object $component, string $templateUrl, array $data = [], ?string $printerName = null, ?string $ref = null): void
     {
-        $component->dispatch(...$this->forPrint($templateUrl, $data, $printerName));
+        $component->dispatch(...$this->forPrint($templateUrl, $data, $printerName, $ref));
     }
 
     /**
@@ -95,9 +104,9 @@ class DymoPrinterManager
      *
      * @param  array<int, array<string, mixed>>  $labels
      */
-    public function batchViaLivewire(object $component, string $templateUrl, array $labels = [], ?string $printerName = null): void
+    public function batchViaLivewire(object $component, string $templateUrl, array $labels = [], ?string $printerName = null, ?string $ref = null): void
     {
-        $component->dispatch(...$this->forBatch($templateUrl, $labels, $printerName));
+        $component->dispatch(...$this->forBatch($templateUrl, $labels, $printerName, $ref));
     }
 
     /**
@@ -106,6 +115,17 @@ class DymoPrinterManager
     public function templateUrl(string $name): string
     {
         return route('dymo-printer.template', ['name' => basename($name)]);
+    }
+
+    /**
+     * The optional `ref` entry of a print event payload — omitted entirely
+     * when null, so payloads without a ref are unchanged.
+     *
+     * @return array{ref?: string}
+     */
+    private function refPayload(?string $ref): array
+    {
+        return $ref === null ? [] : ['ref' => $ref];
     }
 
     private function resolveDeviceId(): string

@@ -18,7 +18,10 @@ class TestCase extends Orchestra
      */
     protected function getPackageProviders($app): array
     {
-        return [DymoPrinterServiceProvider::class];
+        return [
+            \Livewire\LivewireServiceProvider::class,
+            DymoPrinterServiceProvider::class,
+        ];
     }
 
     /**

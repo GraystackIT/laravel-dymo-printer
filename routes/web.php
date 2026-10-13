@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use GraystackIT\DymoPrinter\Http\Controllers\PrinterStateController;
+use GraystackIT\DymoPrinter\Http\Controllers\ScriptController;
 use GraystackIT\DymoPrinter\Http\Controllers\TemplateController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,18 +22,18 @@ Route::prefix(config('dymo-printer.route_prefix', 'dymo-printer'))
             ->name('template')
             ->where('name', '[a-zA-Z0-9_\-\.]+');
 
-        // Serve the package JS bundle without requiring asset publishing
-        Route::get('/dymo-system.js', function (): \Illuminate\Http\Response {
-            $path = realpath(__DIR__ . '/../resources/js/dymo-system.js');
+        // Serve the package scripts and the vendored DYMO Connect SDK without
+        // requiring asset publishing (see ScriptAssets / @dymoscripts)
+        Route::get('/dymo-system.js', [ScriptController::class, 'show'])
+            ->defaults('asset', 'dymo-system')
+            ->name('js');
 
-            return response(
-                file_get_contents($path),
-                200,
-                [
-                    'Content-Type'  => 'application/javascript',
-                    'Cache-Control' => 'public, max-age=86400',
-                ],
-            );
-        })->name('js');
+        Route::get('/printer-select.js', [ScriptController::class, 'show'])
+            ->defaults('asset', 'printer-select')
+            ->name('printer-select-js');
+
+        Route::get('/dymo-connect-framework.js', [ScriptController::class, 'show'])
+            ->defaults('asset', 'sdk')
+            ->name('sdk');
 
     });
